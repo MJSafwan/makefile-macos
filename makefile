@@ -14,6 +14,33 @@ FRAMEWORKS =
 CFLAGS = -Wall -Wextra -pedantic -I$(IDIR) -std=c99 
 TARGET = main
 
+_SRC = $(shell find $(SDIR) -type f -name "*.c")
+__SRC = $(shell echo $(_SRC) | tr "/" " ")
+SRC = $(filter %.c, $(__SRC))
+VPATH = $(shell find $(SDIR) -type d)
+
+DEPS = $(shell find $(IDIR) -type f -name "*.h")
+OBJ = $(patsubst %.c, $(ODIR)/%.o, $(SRC))
+
+_DEPS = $(shell echo $(DEPS) | tr "/" " ")
+NEAT_DEPS = $(filter %.h, $(_DEPS))
+_LIBS = $(shell find $(LDIR) -type f -name "*.$(DLL_EXT)")
+_LIBS += $(shell find $(LDIR) -type f -name "*.$(STATIC_EXT)")
+
+_LIBS1 = $(shell echo $(_LIBS) | tr "/" " ")
+_LIBS1.1 = $(filter %.$(DLL_EXT) %.$(STATIC_EXT), $(_LIBS1)) 
+
+_LIBS2 = $(patsubst %.$(STATIC_EXT),%, $(_LIBS1.1))
+_LIBS3 = $(patsubst %.$(DLL_EXT),%, $(_LIBS2))
+_LIBS4 = $(patsubst lib%,%, $(_LIBS3))
+
+LIBS += $(_LIBS4)
+LIB_CFLAGS = -L$(LDIR) $(addprefix -l, $(LIBS))
+
+FRAMEWORKS_CFLAGS = $(addprefix -framework ,$(FRAMEWORKS))
+
+FINAL_CFLAGS = $(CFLAGS) $(LIB_CFLAGS) $(FRAMEWORKS_CFLAGS)
+
 all : $(TARGET)
 
 setup:
@@ -43,33 +70,6 @@ info :
 	@echo "FINAL_CFLAGS  : $(FINAL_CFLAGS)"
 
 .PHONY: all clean run info setup
-
-_SRC = $(shell find $(SDIR) -type f -name "*.c")
-__SRC = $(shell echo $(_SRC) | tr "/" " ")
-SRC = $(filter %.c, $(__SRC))
-VPATH = $(shell find $(SDIR) -type d)
-
-DEPS = $(shell find $(IDIR) -type f -name "*.h")
-OBJ = $(patsubst %.c, $(ODIR)/%.o, $(SRC))
-
-_DEPS = $(shell echo $(DEPS) | tr "/" " ")
-NEAT_DEPS = $(filter %.h, $(_DEPS))
-_LIBS = $(shell find $(LDIR) -type f -name "*.$(DLL_EXT)")
-_LIBS += $(shell find $(LDIR) -type f -name "*.$(STATIC_EXT)")
-
-_LIBS1 = $(shell echo $(_LIBS) | tr "/" " ")
-_LIBS1.1 = $(filter %.$(DLL_EXT) %.$(STATIC_EXT), $(_LIBS1)) 
-
-_LIBS2 = $(patsubst %.$(STATIC_EXT),%, $(_LIBS1.1))
-_LIBS3 = $(patsubst %.$(DLL_EXT),%, $(_LIBS2))
-_LIBS4 = $(patsubst lib%,%, $(_LIBS3))
-
-LIBS += $(_LIBS4)
-LIB_CFLAGS = -L$(LDIR) $(addprefix -l, $(LIBS))
-
-FRAMEWORKS_CFLAGS = $(addprefix -framework ,$(FRAMEWORKS))
-
-FINAL_CFLAGS = $(CFLAGS) $(LIB_CFLAGS) $(FRAMEWORKS_CFLAGS)
 
 $(TARGET): $(OBJ) $(DEPS) | $(BINDIR) $(LDIR)
 	$(CC) -o $(BINDIR)/$@ $(FINAL_CFLAGS) $(OBJ)
