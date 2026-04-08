@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Mohammed Safwan
+
 GUI_FRAMEWORKS = IOKit Cocoa OpenGL CoreVideo
 
 CC = clang
