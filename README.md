@@ -20,3 +20,10 @@ To clean the build files, run
 make clean
 ```
 
+To build and run the project, run
+
+```sh
+make run
+```
+
+If you want to suppress compiler commands, add the "-s" flag to any of the above commands.

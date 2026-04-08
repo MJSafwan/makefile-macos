@@ -6,8 +6,10 @@ SDIR = ./src
 BDIR = ./build
 ODIR = $(BDIR)/obj
 LDIR = ./lib
-BINDIR = $(BDIR)/bin
+DYLIBDIR = dylib
+DDIR = $(BDIR)/deps
 LIBS = m
+BINDIR = $(BDIR)/bin
 DLL_EXT = dylib
 STATIC_EXT = a
 FRAMEWORKS = 
@@ -17,25 +19,31 @@ TARGET = main
 _SRC = $(shell find $(SDIR) -type f -name "*.c")
 __SRC = $(shell echo $(_SRC) | tr "/" " ")
 SRC = $(filter %.c, $(__SRC))
-VPATH = $(shell find $(SDIR) -type d)
+VPATH = $(shell find $(SDIR) -type d) $(shell find $(LDIR) -type d)
 
 DEPS = $(shell find $(IDIR) -type f -name "*.h")
 OBJ = $(patsubst %.c, $(ODIR)/%.o, $(SRC))
 
 _DEPS = $(shell echo $(DEPS) | tr "/" " ")
 NEAT_DEPS = $(filter %.h, $(_DEPS))
-_LIBS = $(shell find $(LDIR) -type f -name "*.$(DLL_EXT)")
-_LIBS += $(shell find $(LDIR) -type f -name "*.$(STATIC_EXT)")
+_LIBS.DLL = $(shell find $(LDIR) -type f -name "*.$(DLL_EXT)")
+_LIBS.STA = $(shell find $(LDIR) -type f -name "*.$(STATIC_EXT)")
 
-_LIBS1 = $(shell echo $(_LIBS) | tr "/" " ")
-_LIBS1.1 = $(filter %.$(DLL_EXT) %.$(STATIC_EXT), $(_LIBS1)) 
+_LIBS1.STA = $(shell echo $(_LIBS.STA) | tr "/" " ")
+_LIBS2.STA = $(filter %.$(STATIC_EXT), $(_LIBS1.STA)) 
 
-_LIBS2 = $(patsubst %.$(STATIC_EXT),%, $(_LIBS1.1))
-_LIBS3 = $(patsubst %.$(DLL_EXT),%, $(_LIBS2))
-_LIBS4 = $(patsubst lib%,%, $(_LIBS3))
+_LIBS3.STA = $(patsubst %.$(STATIC_EXT),%, $(_LIBS2.STA))
+_LIBS4.STA = $(patsubst lib%,%, $(_LIBS3.STA))
 
-LIBS += $(_LIBS4)
-LIB_CFLAGS = -L$(LDIR) $(addprefix -l, $(LIBS))
+_LIBS1.DLL = $(shell echo $(_LIBS.DLL) | tr "/" " ")
+_LIBS2.DLL = $(filter %.$(DLL_EXT), $(_LIBS1.DLL)) 
+_MY_DLLS  = $(addprefix $(BINDIR)/$(DYLIBDIR)/,$(_LIBS2.DLL))
+
+_LIBS3.DLL = $(patsubst %.$(DLL_EXT),%, $(_LIBS2.DLL))
+_LIBS4.DLL = $(patsubst lib%,%, $(_LIBS3.DLL))
+
+LIBS += $(_LIBS4.STA) $(_LIBS4.DLL)
+LIB_CFLAGS = -L$(LDIR) $(addprefix -l, $(LIBS)) -Wl,-rpath,@loader_path/$(DYLIBDIR) 
 
 FRAMEWORKS_CFLAGS = $(addprefix -framework ,$(FRAMEWORKS))
 
@@ -47,14 +55,14 @@ setup:
 	@mkdir -p $(SDIR)
 	@mkdir -p $(IDIR)
 	@mkdir -p $(LDIR)
-	@echo "#include <stdio.h>\n\nint main(void) {\n    printf(\"Hello, World!\");\n    return 0;\n}">> $(SDIR)/$(TARGET).c
+	@touch $(SDIR)/main.c
 
 clean : 
 	@rm -rf $(BDIR)
 
 run : $(TARGET)
 	@$(BINDIR)/$(TARGET)
-
+	
 info :
 	@echo "Source dir    : $(SDIR)"
 	@echo "Include dir   : $(IDIR)"
@@ -65,17 +73,23 @@ info :
 	@echo "Source files  : $(SRC)"
 	@echo "Header files  : $(NEAT_DEPS)"
 	@echo "Libs          : $(LIBS)"
+	@echo "Dylib binary  : $(BINDIR)/$(DYLIBDIR)"
 	@echo "Frameworks    : $(FRAMEWORKS)"
 	@echo "CFLAGS        : $(CFLAGS)"
 	@echo "FINAL_CFLAGS  : $(FINAL_CFLAGS)"
 
 .PHONY: all clean run info setup
 
-$(TARGET): $(OBJ) $(DEPS) | $(BINDIR) $(LDIR)
+$(BINDIR)/$(DYLIBDIR)/%.dylib : %.dylib | $(BINDIR)/$(DYLIBDIR)
+	@cp $< $(BINDIR)/$(DYLIBDIR)
+	@install_name_tool -id '@rpath/$*.dylib' $<
+
+$(TARGET): $(OBJ) $(DEPS) $(_MY_DLLS) | $(BINDIR) $(LDIR) $(BINDIR)/$(DYLIBDIR)
 	$(CC) -o $(BINDIR)/$@ $(FINAL_CFLAGS) $(OBJ)
 
-$(OBJ): $(ODIR)/%.o : %.c  $(DEPS) | $(ODIR) $(SDIR) $(IDIR)
-	$(CC) -o $@ $(CFLAGS) -c $<	
+$(OBJ): $(ODIR)/%.o : %.c | $(ODIR) $(SDIR) $(IDIR) $(DDIR)
+	$(CC) -o $@ $(CFLAGS) -MMD -MF $(DDIR)/$*.dep -c $<	
+include $(wildcard $(DDIR)/*.dep)
 
 $(BDIR) :
 	@mkdir -p $(BDIR)
@@ -85,3 +99,9 @@ $(ODIR) : $(BDIR)
 
 $(BINDIR) : $(BDIR)
 	@mkdir -p $(BINDIR)
+
+$(BINDIR)/$(DYLIBDIR) : $(BINDIR)
+	@mkdir -p $(BINDIR)/$(DYLIBDIR)
+
+$(DDIR) : $(BDIR)
+	@mkdir -p $(DDIR)
